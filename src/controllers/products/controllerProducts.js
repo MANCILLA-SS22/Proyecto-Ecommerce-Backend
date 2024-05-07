@@ -15,7 +15,7 @@ class ProductRouter extends Route{
             res.sendSuccess(products);
         });
 
-        this.get("/", ['ADMIN', 'USER'], async function(req, res){
+        this.get("/", ['ADMIN', 'USER', 'PREMIUM'], async function(req, res){
             try {
                 // console.log("req.user", req.user);
                 // Copiar y pegar en barra de navegacion --> http://localhost:5500/api/products?page=1&limit=3&sort=asc&stock=8&category=New
@@ -90,6 +90,7 @@ class ProductRouter extends Route{
         this.post("/", ['ADMIN'], async function(req, res){
             try {
                 const productDto = new ProductDto(req.body, req.user.email);
+                console.log("productDto", productDto);
 
                 if (productDto.title !== undefined && productDto.description !== undefined && productDto.price !== undefined && productDto.thumbnail !== undefined && productDto.code !== undefined && productDto.stock !== undefined && productDto.category !== undefined) {
                     const crearProducto = await productService.addProduct(productDto);
@@ -118,27 +119,25 @@ class ProductRouter extends Route{
         this.put("/:pid", ['ADMIN'], async function(req, res){
             try {
                 const {pid} = req.params;
-                const productDto = new ProductDto(req.body);
+                const productDto = new ProductDto(req.body, req.user.email);
+                console.log("productDto", productDto);
             
-                const verificarId = productService.getProductById(pid);
-                if(!verificarId){
-                    res.sendClientError({message: "Not found id."});
-                }else{
-                    const verifyExistenceUndefined = Object.values(productDto).indexOf(undefined);
-                    if (verifyExistenceUndefined == -1) {
-                        const actualizarProducto = await productService.updateProduct(pid, productDto);
-                        
-                        const getAll = await productService.getProducts();
-                        io.emit("product_list", getAll);
+                const verificarId = await productService.getProductById(pid);
+                if(!verificarId) res.sendClientError({message: "Not found id."});
 
-                        res.sendSuccess(actualizarProducto);
-                    }else{
-                        productError(productDto);
-                        res.sendClientError({message: "Not enough information."});
-                    }
+                const verifyExistenceUndefined = Object.values(productDto).indexOf(undefined);
+                if (verifyExistenceUndefined === -1) {
+                    const actualizarProducto = await productService.updateProduct(pid, productDto);
+                    const getAll = await productService.getProducts();
+                    io.emit("product_list", getAll);
+                    res.sendSuccess(actualizarProducto);
+                }else{
+                    productError(productDto);
+                    res.sendClientError({message: "Not enough information."});
                 }
+                
             } catch (error) {
-                req.logger.error(error.cause.toString());
+                // req.logger.error(error.cause.toString());
                 res.sendServerError(`something went wrong ${error}`);
             }
         });
@@ -147,14 +146,11 @@ class ProductRouter extends Route{
             try {
                 const {pid} = req.params;
                 const verificarId = await productService.getProductById(pid);
-                if(!verificarId){
-                    res.sendClientError({message: "Not found id."});
-                }else{
-                    const eliminarProducto = await productService.deleteProduct(pid);
-                    const getAll = await productService.getProducts();
-                    io.emit("product_list", getAll);
-                    res.sendSuccess(eliminarProducto);
-                }
+                if(!verificarId) res.sendClientError({message: "Not found id."});
+                const eliminarProducto = await productService.deleteProduct(pid);
+                const getAll = await productService.getProducts();
+                io.emit("product_list", getAll);
+                res.sendSuccess(eliminarProducto);
             } catch (error) {
                 res.sendServerError(`something went wrong ${error}`)
             }
